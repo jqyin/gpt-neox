@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
 from torch.utils import cpp_extension
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+from torch.cuda import is_available as torch_cuda_available
 from pathlib import Path
 import subprocess
 
@@ -20,25 +21,17 @@ def _get_cuda_bare_metal_version(cuda_dir):
 
 srcpath = Path(__file__).parent.absolute()
 cc_flag = []
-_, bare_metal_major, _ = _get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
-if int(bare_metal_major) >= 11:
-    cc_flag.append("-gencode")
-    cc_flag.append("arch=compute_80,code=sm_80")
 
 nvcc_flags = [
     "-O3",
-    "-gencode",
-    "arch=compute_70,code=sm_70",
-    "--use_fast_math",
-    "-U__CUDA_NO_HALF_OPERATORS__",
-    "-U__CUDA_NO_HALF_CONVERSIONS__",
-    "--expt-relaxed-constexpr",
-    "--expt-extended-lambda",
+    "-U__HIP_NO_HALF_OPERATORS__",
+    "-U__HIP_NO_HALF_CONVERSIONS__",
+    "-D__HIP_PLATFORM_AMD__=1",
 ]
 cuda_ext_args = {"cxx": ["-O3"], "nvcc": nvcc_flags + cc_flag}
 layernorm_cuda_args = {
     "cxx": ["-O3"],
-    "nvcc": nvcc_flags + cc_flag + ["-maxrregcount=50"],
+    "nvcc": nvcc_flags + cc_flag,
 }
 setup(
     name="fused_kernels",
@@ -63,6 +56,8 @@ setup(
             ],
             extra_compile_args=cuda_ext_args,
         ),
-    ],
+    ]
+    if torch_cuda_available()
+    else [],
     cmdclass={"build_ext": BuildExtension},
 )
